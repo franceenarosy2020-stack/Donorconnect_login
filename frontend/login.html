@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DonorConnect | Secure Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1e1b4b 0%, #020617 100%);
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(239, 68, 68, 0.1);
+        }
+        .input-field {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-field:focus {
+            border-color: #ef4444;
+            background: #020617;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+        }
+        .btn-primary {
+            background-color: #b91c1c;
+            box-shadow: 0 4px 20px rgba(185, 28, 28, 0.5);
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.2s ease-in-out 0s 2; }
+        input::-ms-reveal, input::-ms-clear { display: none; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+    <div class="w-full max-w-[420px]">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-20 h-20 bg-red-600 rounded-3xl rotate-3 mb-6 shadow-2xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-white -rotate-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+            </div>
+            <h1 class="text-4xl font-extrabold text-white tracking-tight uppercase">DonorConnect</h1>
+        </div>
+
+        <div class="glass-card p-8 md:p-10 rounded-[2.5rem]">
+            <div id="errorMessage" class="hidden mb-6 p-4 bg-red-900/30 border border-red-500/50 rounded-xl text-red-200 text-xs font-bold uppercase tracking-widest text-center">
+                Invalid Email or Password
+            </div>
+
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Access Portal</label>
+                    <select id="role" class="input-field w-full p-4 rounded-2xl outline-none appearance-none cursor-pointer font-medium">
+                        <option value="user">Donor / Requester</option>
+                        <option value="admin">Administrator</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Email ID</label>
+                    <input type="email" id="email" placeholder="hero@donorconnect.com" required
+                        class="input-field w-full p-4 rounded-2xl outline-none placeholder:text-slate-700">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Secure Password</label>
+                    <div class="relative">
+                        <input type="password" id="password" placeholder="••••••••" required
+                            class="input-field w-full p-4 pr-12 rounded-2xl outline-none placeholder:text-slate-700">
+                        <button type="button" onclick="togglePassword()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-red-500">
+                            <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                                <path d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.61 6.645 6.5 10 6.5s6.517 2.11 7.964 5.178c.07.148.07.312 0 .46a11.03 11.03 0 01-7.964 5.178c-3.355 0-6.517-2.11-7.964-5.178z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" id="loginBtn"
+                    class="btn-primary w-full py-5 rounded-2xl text-white font-black text-2xl uppercase tracking-widest transition-all active:scale-95 mt-4">
+                    Login
+                </button>
+            </form>
+
+            <div class="mt-10 pt-6 border-t border-slate-700/50 text-center">
+                <p class="text-slate-400 text-sm font-medium">
+                    New Hero? <a href="register.html" class="text-red-500 font-bold hover:underline ml-1">Register Now</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const pwd = document.getElementById('password');
+            pwd.type = pwd.type === 'password' ? 'text' : 'password';
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const loginBtn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('errorMessage');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const selectedRole = document.getElementById('role').value;
+
+            // Reset UI
+            errorDiv.classList.add('hidden');
+            loginBtn.innerText = "Authenticating...";
+            loginBtn.disabled = true;
+
+            try {
+                // CHANGED: Use 127.0.0.1 for more reliable local server communication
+                const response = await fetch('http://127.0.0.1:5000/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // NEW: Security check - ensure their DB role matches what they selected
+                    if (result.user.role !== selectedRole) {
+                        throw new Error(`Unauthorized: You are not an ${selectedRole}`);
+                    }
+
+                    // Save session data
+                    localStorage.setItem('token', result.token);
+                    localStorage.setItem('userName', result.user.name);
+                    localStorage.setItem('userRole', result.user.role);
+                    
+                    window.location.href = 'dashboard.html';
+                } else {
+                    throw new Error(result.error || "Login Failed");
+                }
+            } catch (error) {
+                // Show error message on card and shake it
+                errorDiv.innerText = error.message;
+                errorDiv.classList.remove('hidden');
+                document.querySelector('.glass-card').classList.add('shake');
+                setTimeout(() => document.querySelector('.glass-card').classList.remove('shake'), 400);
+            } finally {
+                loginBtn.innerText = "Login";
+                loginBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

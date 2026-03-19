@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DonorConnect | Join the Mission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top left, #1e1b4b 0%, #020617 100%);
+            overflow-x: hidden;
+        }
+        .glass-card {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(185, 28, 28, 0.1);
+        }
+        .input-field {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .input-field:focus {
+            border-color: #ef4444;
+            background: #020617;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+        }
+        .btn-primary { background-color: #b91c1c; box-shadow: 0 4px 20px rgba(185, 28, 28, 0.5); }
+        .role-pill {
+            background: #0f172a; border: 2px solid #334155; color: #94a3b8;
+            cursor: pointer; transition: all 0.2s ease; user-select: none;
+        }
+        .role-pill.active {
+            border-color: #ef4444; color: white;
+            background: rgba(239, 68, 68, 0.15); box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+        }
+        #mapContainer {
+            display: none; border-radius: 1rem; overflow: hidden;
+            border: 1px solid #334155; margin-top: 0.75rem; position: relative;
+        }
+        #map { height: 260px; width: 100%; z-index: 1; }
+        #mapHint {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(2,6,23,0.85); color: #94a3b8; font-size: 10px;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em;
+            padding: 5px 12px; border-radius: 999px; z-index: 10;
+            pointer-events: none; white-space: nowrap;
+        }
+        .leaflet-container { background: #0f172a; }
+        #geocodeRow { display: flex; gap: 0.5rem; align-items: stretch; }
+        #geocodeRow input { flex: 1; }
+        #geocodeBtn {
+            background: #1e293b; border: 1px solid #334155; color: #94a3b8;
+            padding: 0 1rem; border-radius: 1rem; font-size: 10px; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        #geocodeBtn:hover { border-color: #ef4444; color: white; }
+        #locationBadge {
+            display: none; background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.4); color: #86efac;
+            border-radius: 0.75rem; padding: 0.6rem 1rem; font-size: 10px;
+            font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em;
+            text-align: center; margin-top: 0.5rem;
+        }
+        #gpsBtn {
+            background: #0f172a; border: 1px solid #334155; color: #64748b;
+            width: 100%; padding: 0.75rem; border-radius: 1rem; font-size: 10px;
+            font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em;
+            cursor: pointer; transition: all 0.2s; display: flex;
+            align-items: center; justify-content: center; gap: 0.4rem; margin-top: 0.5rem;
+        }
+        #gpsBtn:hover { border-color: #64748b; color: #94a3b8; }
+        #termsModal {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: rgba(2,6,23,0.85); backdrop-filter: blur(8px);
+            align-items: center; justify-content: center; padding: 1.5rem;
+        }
+        input::-ms-reveal, input::-ms-clear { display: none; }
+
+        /* Phone field country code prefix */
+        .phone-wrap { display: flex; gap: 0; }
+        .phone-prefix {
+            background: #1e293b; border: 1px solid #334155; border-right: none;
+            color: #64748b; padding: 0 0.85rem; border-radius: 1rem 0 0 1rem;
+            font-size: 13px; font-weight: 700; display: flex; align-items: center;
+            white-space: nowrap; user-select: none;
+        }
+        .phone-input {
+            flex: 1; border-radius: 0 1rem 1rem 0 !important;
+        }
+
+        /* Password match indicator */
+        .pwd-match-icon {
+            position: absolute; right: 3rem; top: 50%; transform: translateY(-50%);
+            font-size: 14px; transition: opacity 0.2s;
+        }
+        .spinner {
+            display: inline-block; width: 12px; height: 12px;
+            border: 2px solid #ef4444; border-top-color: transparent;
+            border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6 py-12">
+
+    <!-- Terms Modal -->
+    <div id="termsModal" onclick="closeTerms()">
+        <div class="glass-card max-w-lg w-full p-8 rounded-[2rem] max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <h2 class="text-2xl font-black uppercase text-red-500 mb-4 tracking-tighter">Terms of Service</h2>
+            <div class="text-slate-300 space-y-4 text-sm leading-relaxed">
+                <p>1. <strong>Accuracy:</strong> By registering, you confirm all medical and contact information is 100% accurate.</p>
+                <p>2. <strong>Privacy:</strong> Your home location is stored only to connect you with nearby blood requests. Never shared publicly.</p>
+                <p>3. <strong>Conduct:</strong> Misuse of contact information will result in immediate account suspension and legal action.</p>
+            </div>
+            <button onclick="closeTerms()" class="btn-primary w-full py-3 rounded-xl text-white font-bold uppercase mt-8 transition-all active:scale-95">I Understand</button>
+        </div>
+    </div>
+
+    <div class="w-full max-w-lg">
+        <div class="glass-card p-8 md:p-10 rounded-[2.5rem] text-white">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-extrabold tracking-tight uppercase">Create Account</h1>
+                <p class="text-slate-400 text-sm mt-3 font-semibold tracking-widest uppercase opacity-80">Join the mission</p>
+            </header>
+
+            <form id="registerForm" class="space-y-5">
+
+                <!-- Name & Email -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Full Name</label>
+                        <input type="text" id="name" placeholder="John Doe" required class="input-field w-full p-4 rounded-2xl outline-none placeholder:text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Email</label>
+                        <input type="email" id="email" placeholder="john@example.com" required class="input-field w-full p-4 rounded-2xl outline-none placeholder:text-slate-700">
+                    </div>
+                </div>
+
+                <!-- Phone Number -->
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Phone Number</label>
+                    <div class="phone-wrap">
+                        <span class="phone-prefix">🇮🇳 +91</span>
+                        <input type="tel" id="phone" placeholder="98765 43210" required maxlength="10"
+                            class="input-field phone-input w-full p-4 outline-none placeholder:text-slate-700"
+                            oninput="validatePhone(this)">
+                    </div>
+                    <p id="phoneError" class="hidden text-red-400 text-[10px] font-bold uppercase tracking-widest mt-1 ml-1">Enter a valid 10-digit Indian mobile number</p>
+                </div>
+
+                <!-- Role pills -->
+                <div class="pt-2 border-t border-slate-700/50">
+                    <label class="block text-[10px] font-bold text-red-500 uppercase tracking-[0.2em] mb-3 ml-1 text-center">I want to register as</label>
+                    <div class="flex gap-3">
+                        <div id="pill-donor" class="role-pill flex-1 py-3 px-4 rounded-2xl text-center text-xs font-black uppercase tracking-widest" onclick="toggleRole('donor')">🩸 Donor</div>
+                        <div id="pill-requester" class="role-pill flex-1 py-3 px-4 rounded-2xl text-center text-xs font-black uppercase tracking-widest" onclick="toggleRole('requester')">🏥 Requester</div>
+                        <div id="pill-both" class="role-pill flex-1 py-3 px-4 rounded-2xl text-center text-xs font-black uppercase tracking-widest" onclick="toggleRole('both')">✅ Both</div>
+                    </div>
+                    <p id="roleError" class="hidden text-red-500 text-[10px] font-bold uppercase tracking-widest text-center mt-2">Please select at least one role</p>
+                </div>
+
+                <!-- Home Base Location -->
+                <div class="pt-2 border-t border-slate-700/50 space-y-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-red-500 uppercase tracking-[0.2em] mb-1 ml-1 text-center">Home Base Location</label>
+                        <p class="text-[9px] text-slate-500 font-semibold uppercase tracking-widest text-center mb-3">
+                            Use address search OR GPS — only one needed
+                        </p>
+                    </div>
+
+                    <!-- Option A: Address search -->
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Option A — Search Your Home Area</label>
+                        <div id="geocodeRow">
+                            <input type="text" id="city" placeholder="e.g. Kakkanad, Kochi, Kerala"
+                                class="input-field p-4 rounded-2xl outline-none placeholder:text-slate-700"
+                                onkeydown="if(event.key==='Enter'){event.preventDefault();geocodeAddress();}">
+                            <button type="button" id="geocodeBtn" onclick="geocodeAddress()">🔍 Find</button>
+                        </div>
+                        <p class="text-[9px] text-slate-600 mt-1 ml-1">Type your area and press Find — then drag the pin to your exact home</p>
+                    </div>
+
+                    <!-- Map (shown after geocode or GPS) -->
+                    <div id="mapContainer">
+                        <div id="map"></div>
+                        <div id="mapHint">📍 Drag the pin · Click to move</div>
+                    </div>
+                    <div id="locationBadge">✅ &nbsp;<span id="locationBadgeText">Home location confirmed</span></div>
+
+                    <!-- Option B: GPS -->
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1 ml-1">
+                            Option B — Use GPS <span class="text-slate-600 normal-case font-normal tracking-normal">(only if you're at home right now)</span>
+                        </label>
+                        <button type="button" id="gpsBtn" onclick="getGPS()">
+                            <span id="gpsIcon">📍</span>
+                            <span id="gpsText">I'm at home — use my current GPS</span>
+                        </button>
+                    </div>
+
+                    <p id="locationError" class="hidden text-red-400 text-[10px] font-bold uppercase tracking-widest mt-1 ml-1 text-center">Please set your home location using Option A or Option B</p>
+
+                    <input type="hidden" id="latitude">
+                    <input type="hidden" id="longitude">
+                </div>
+
+                <!-- Blood Group & Password -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-700/50">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Blood Group</label>
+                        <select id="blood_group" class="input-field w-full p-4 rounded-2xl outline-none appearance-none cursor-pointer">
+                            <option value="A+">A+</option><option value="A-">A-</option>
+                            <option value="B+">B+</option><option value="B-">B-</option>
+                            <option value="O+">O+</option><option value="O-">O-</option>
+                            <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Password</label>
+                        <div class="relative">
+                            <input type="password" id="password" placeholder="••••••••" required
+                                class="input-field w-full p-4 pr-12 rounded-2xl outline-none placeholder:text-slate-700"
+                                oninput="checkPasswordMatch()">
+                            <button type="button" onclick="togglePassword('password','eyeIcon')"
+                                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-red-500 transition-colors">
+                                <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.61 6.645 6.5 10 6.5s6.517 2.11 7.964 5.178c.07.148.07.312 0 .46a11.03 11.03 0 01-7.964 5.178c-3.355 0-6.517-2.11-7.964-5.178z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confirm Password — full width -->
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Confirm Password</label>
+                    <div class="relative">
+                        <input type="password" id="confirmPassword" placeholder="••••••••" required
+                            class="input-field w-full p-4 pr-20 rounded-2xl outline-none placeholder:text-slate-700"
+                            oninput="checkPasswordMatch()">
+                        <!-- Live match icon -->
+                        <span id="pwdMatchIcon" class="pwd-match-icon opacity-0"></span>
+                        <button type="button" onclick="togglePassword('confirmPassword','eyeIcon2')"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-red-500 transition-colors">
+                            <svg id="eyeIcon2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.61 6.645 6.5 10 6.5s6.517 2.11 7.964 5.178c.07.148.07.312 0 .46a11.03 11.03 0 01-7.964 5.178c-3.355 0-6.517-2.11-7.964-5.178z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <p id="pwdMatchError" class="hidden text-red-400 text-[10px] font-bold uppercase tracking-widest mt-1 ml-1">Passwords do not match</p>
+                </div>
+
+                <!-- Terms -->
+                <div class="flex items-start gap-3 px-1">
+                    <input type="checkbox" id="terms" required class="mt-1 accent-red-600 w-4 h-4">
+                    <label for="terms" class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-tight">
+                        I agree to the <span onclick="openTerms()" class="text-red-500 underline cursor-pointer">Terms</span> and confirm my home location is accurate.
+                    </label>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn-primary w-full py-5 rounded-2xl text-white font-black text-2xl uppercase tracking-widest transition-all hover:brightness-110 active:scale-95 mt-4">
+                    Create Account
+                </button>
+            </form>
+
+            <div class="mt-10 pt-6 border-t border-slate-700/50 text-center">
+                <p class="text-slate-400 text-sm font-medium">
+                    Already a hero? <a href="login.html" class="text-red-600 font-bold hover:text-red-500 underline underline-offset-4 ml-1">Login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedRole = null;
+        let map = null, marker = null, mapInitialized = false;
+
+        function toggleRole(role) {
+            selectedRole = role;
+            document.getElementById('pill-donor').classList.toggle('active', role === 'donor' || role === 'both');
+            document.getElementById('pill-requester').classList.toggle('active', role === 'requester' || role === 'both');
+            document.getElementById('pill-both').classList.toggle('active', role === 'both');
+            document.getElementById('roleError').classList.add('hidden');
+        }
+
+        function initMap(lat, lng) {
+            document.getElementById('mapContainer').style.display = 'block';
+            if (!mapInitialized) {
+                map = L.map('map').setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors', maxZoom: 19
+                }).addTo(map);
+
+                const redIcon = L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                    iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41]
+                });
+                marker = L.marker([lat, lng], { draggable: true, icon: redIcon }).addTo(map);
+                marker.on('dragend', () => {
+                    const p = marker.getLatLng();
+                    setCoordinates(p.lat, p.lng, "Pin dragged to custom position");
+                });
+                map.on('click', (e) => {
+                    marker.setLatLng(e.latlng);
+                    setCoordinates(e.latlng.lat, e.latlng.lng, "Pin placed via map click");
+                });
+                mapInitialized = true;
+            } else {
+                map.setView([lat, lng], 15);
+                marker.setLatLng([lat, lng]);
+            }
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        function setCoordinates(lat, lng, label) {
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+            const badge = document.getElementById('locationBadge');
+            badge.style.display = 'block';
+            document.getElementById('locationBadgeText').innerText =
+                `${label} · (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        }
+
+        async function geocodeAddress() {
+            const city = document.getElementById('city').value.trim();
+            if (!city) { alert("Please enter your home area first."); return; }
+            const btn = document.getElementById('geocodeBtn');
+            btn.innerHTML = '<span class="spinner"></span>';
+            btn.disabled = true;
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
+                const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'DonorConnectApp/1.0' } });
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+                    initMap(lat, lng);
+                    setCoordinates(lat, lng, `Found: ${data[0].display_name.split(',').slice(0,2).join(',')}`);
+                } else {
+                    alert("Location not found. Try a more specific address, e.g. 'Kakkanad, Ernakulam, Kerala'.");
+                }
+            } catch {
+                alert("Geocoding failed. Check your internet or use GPS.");
+            } finally {
+                btn.innerHTML = '🔍 Find';
+                btn.disabled = false;
+            }
+        }
+
+        function getGPS() {
+            const gpsText = document.getElementById('gpsText');
+            gpsText.innerText = "Detecting GPS...";
+            if (!navigator.geolocation) { alert("GPS not supported by your browser."); return; }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    initMap(pos.coords.latitude, pos.coords.longitude);
+                    setCoordinates(pos.coords.latitude, pos.coords.longitude, "Set via GPS");
+                    document.getElementById('gpsIcon').innerText = "✅";
+                    gpsText.innerText = "GPS set — drag pin on map if needed";
+                },
+                () => {
+                    alert("GPS Access Denied. Please use the address search instead.");
+                    gpsText.innerText = "I'm at home — use my current GPS";
+                }
+            );
+        }
+
+        // ─── Phone Validation ────────────────────────────────────
+        function validatePhone(input) {
+            input.value = input.value.replace(/\D/g, '').slice(0, 10);
+        }
+        function isValidPhone(num) {
+            return /^[6-9]\d{9}$/.test(num);
+        }
+
+        // ─── Password Match ──────────────────────────────────────
+        function checkPasswordMatch() {
+            const pwd = document.getElementById('password').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const icon = document.getElementById('pwdMatchIcon');
+            const error = document.getElementById('pwdMatchError');
+            if (confirm.length === 0) { icon.style.opacity = '0'; error.classList.add('hidden'); return; }
+            if (pwd === confirm) {
+                icon.innerText = '✅'; icon.style.opacity = '1'; error.classList.add('hidden');
+            } else {
+                icon.innerText = '❌'; icon.style.opacity = '1'; error.classList.remove('hidden');
+            }
+        }
+
+        // ─── Password Toggle (shared for both fields) ────────────
+        function togglePassword(fieldId, iconId) {
+            const pwd = document.getElementById(fieldId);
+            const icon = document.getElementById(iconId);
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />';
+            } else {
+                pwd.type = 'password';
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.644C3.483 8.61 6.645 6.5 10 6.5s6.517 2.11 7.964 5.178c.07.148.07.312 0 .46a11.03 11.03 0 01-7.964 5.178c-3.355 0-6.517-2.11-7.964-5.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />';
+            }
+        }
+
+        function openTerms() { document.getElementById('termsModal').style.display = 'flex'; }
+        function closeTerms() { document.getElementById('termsModal').style.display = 'none'; }
+
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+
+            // 1. Role check
+            if (!selectedRole) {
+                document.getElementById('roleError').classList.remove('hidden');
+                alert("Please select a role: Donor, Requester, or Both.");
+                return;
+            }
+
+            // 2. Phone validation
+            const phone = document.getElementById('phone').value;
+            if (!isValidPhone(phone)) {
+                document.getElementById('phoneError').classList.remove('hidden');
+                document.getElementById('phone').focus();
+                alert("Please enter a valid 10-digit Indian mobile number.");
+                return;
+            }
+            document.getElementById('phoneError').classList.add('hidden');
+
+            // 3. Password check
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            if (!password) {
+                alert("Please enter a password.");
+                return;
+            }
+            if (password !== confirmPassword) {
+                document.getElementById('pwdMatchError').classList.remove('hidden');
+                document.getElementById('confirmPassword').focus();
+                alert("Passwords do not match.");
+                return;
+            }
+
+            // 4. Location check — auto-geocode if city typed but Find not clicked
+            let latitude = document.getElementById('latitude').value;
+            let longitude = document.getElementById('longitude').value;
+
+            if (!latitude || !longitude) {
+                const city = document.getElementById('city').value.trim();
+                if (city) {
+                    // Auto-geocode before submitting
+                    submitBtn.innerText = "Finding location...";
+                    submitBtn.disabled = true;
+                    try {
+                        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city)}&format=json&limit=1`;
+                        const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'DonorConnectApp/1.0' } });
+                        const geoData = await res.json();
+                        if (geoData && geoData.length > 0) {
+                            latitude = geoData[0].lat;
+                            longitude = geoData[0].lon;
+                            document.getElementById('latitude').value = latitude;
+                            document.getElementById('longitude').value = longitude;
+                        } else {
+                            submitBtn.innerText = "Create Account";
+                            submitBtn.disabled = false;
+                            alert("Could not find your address. Try a more specific area name or use GPS.");
+                            return;
+                        }
+                    } catch {
+                        submitBtn.innerText = "Create Account";
+                        submitBtn.disabled = false;
+                        alert("Location lookup failed. Please use the GPS option instead.");
+                        return;
+                    }
+                } else {
+                    document.getElementById('locationError').classList.remove('hidden');
+                    alert("Please set your home location using Option A (address) or Option B (GPS).");
+                    return;
+                }
+            }
+            document.getElementById('locationError').classList.add('hidden');
+
+            submitBtn.innerText = "Joining Mission...";
+            submitBtn.disabled = true;
+
+            const userData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: '+91' + phone,
+                city: document.getElementById('city').value || 'Not specified',
+                password: password,
+                blood_group: document.getElementById('blood_group').value,
+                latitude: parseFloat(latitude),
+                longitude: parseFloat(longitude),
+                role: "user",
+                is_donor: selectedRole === 'donor' || selectedRole === 'both',
+                is_requester: selectedRole === 'requester' || selectedRole === 'both'
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert("Welcome to DonorConnect!");
+                    window.location.href = 'login.html';
+                } else {
+                    alert("Registration failed: " + (result.error || "Unknown error"));
+                }
+            } catch (err) {
+                alert("Server unreachable. Make sure app.py is running.\n\nError: " + err.message);
+            } finally {
+                submitBtn.innerText = "Create Account";
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
